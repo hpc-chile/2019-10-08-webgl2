@@ -1,0 +1,29 @@
+<html>
+
+<body>
+  <h1>01-WebGL Introduction</h1>
+  <canvas id="webglCanvas" width="640" height="480"></canvas>
+  </div>
+</body>
+<script>
+  // Main Loop
+  function webglLoop() {
+    // Get the canvas where we will work
+    const canvas = document.querySelector("#webglCanvas");
+    // Initialize WebGL context
+    const gl = canvas.getContext("webgl");
+
+    // Check if WebGL is availaible
+    if (gl === null) {
+      alert("No WebGL context available. Try another browser or refresh the wepage.");
+      return
+    }
+
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+  }
+
+  window.onload = webglLoop;
+</script>
+
+</html>
