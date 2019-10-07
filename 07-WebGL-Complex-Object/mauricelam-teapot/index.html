@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Teapot</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="include/farbtastic/farbtastic.css">
+    <link rel="stylesheet" href="include/slider/fd-slider.min.css" />
+</head>
+<body>
+    <div id="fps"></div>
+    <div id="controls">
+        <label>Environment</label>
+        <section id="environments">
+            <div class="mapOptions">
+                <label>Street View</label>
+                <div id="map"></div>
+            </div>
+            <div class="gplusOptions">
+                <label>Google+ #photosphere</label>
+                <div id="gplus"></div>
+            </div>
+        </section>
+        <div id="changeEnvironment"></div>
+        <label>Teapot</label>
+        <section>
+            <div>Color<input id="color" type="text" value="#7f6534" /></div>
+            <div id="colorpicker"></div>
+            <div>Shininess<input id="shininess" type="range" max="1.0" step="0.01" value="0.8" /></div>
+            <div>Reflection Blur<input id="smoothness" type="range" max="1.0" step="0.01" value="0.6" /></div>
+            <div>Shadow<input id="shadowDepth" type="range" max="0.5" step="0.01" value="0.2" /></div>
+            <div id="textureDrop">
+                <div class="preview"></div>
+                Texture
+                <input id="textureAlpha" type="range" max="1.0" step="0.01" value="0.7" />
+            </div>
+            <div id="bumpMapDrop">
+                <div class="preview"></div>
+                Bump Map
+                <input id="bumpMapDepth" type="range" min="-3.0" max="3.0" step="0.01" value="2.0" />
+            </div>
+            Image Library<br />
+            <small>(Drag to texture or bump map)</small>
+            <div id="imageLibrary"></div>
+            <a href="#" id="addImage">+ add</a>
+        </section>
+    </div>
+
+    <canvas id="canvas">
+        Your browser does not support canvas. Please use one that supports it, e.g. <a href="www.google.com/chrome/">Chrome</a>. 
+    </canvas>
+    <script type="x-shader/x-vertex" id="shadowshader-v" src="shadowshader.vert"></script>
+    <script type="x-shader/x-fragment" id="shadowshader-f" src="shadowshader.frag"></script>
+    <script type="x-shader/x-vertex" id="potshader-v" src="potshader.vert"></script>
+    <script type="x-shader/x-fragment" id="potshader-f" src="potshader.frag"></script>
+    <script type="x-shader/x-vertex" id="panoshader-v" src="panoshader.vert"></script>
+    <script type="x-shader/x-fragment" id="panoshader-f" src="panoshader.frag"></script>
+
+    <script src="http://code.jquery.com/jquery-1.9.1.js"></script>
+    <script src="http://maps.googleapis.com/maps/api/js?key=AIzaSyDjetx8Cmd_03PuCUCuku5-ILxFsh9riPQ&sensor=false&language=en"></script>
+    <script src="include/sylvester/sylvester.js"></script>
+    <script src="include/farbtastic/farbtastic.js"></script>
+    <script src="include/slider/fd-slider.min.js"></script>
+    <script src="include/webgl-utils.js"></script>
+    <script src="include/PanoLoader.js"></script>
+    <script src="include/FastBlur.js"></script>
+    <script src="include/sphere.js"></script>
+    <script src="utils.js"></script>
+    <script src="objparser.js"></script>
+    <script src="pipeline.js"></script>
+    <script src="streetview.js"></script>
+    <script src="teapot.js"></script>
+    <script src="main.js"></script>
+    <script src="http://apis.google.com/js/client.js?onload=initGPlus"></script>
+</body>
+</html>
