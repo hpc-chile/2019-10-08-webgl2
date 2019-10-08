@@ -8,8 +8,6 @@
 <script src="twgl-full.js"></script>
 <script id="vertex-shader" type="webgl-shader/vertex">#version 300 es
   in vec3 coordinates;
-  in vec3 color;
-  out vec3 vertexColor;
   uniform vec2 canvasSize;
   uniform mat4 modelMatrix;
   uniform mat4 viewMatrix;
@@ -18,9 +16,9 @@
 
   void main(void) {
     gl_Position = vec4(coordinates, 1.0);
-    vec2 normalizedCoordinates = (coordinates.xy+1.0)*0.5;
-    pixelLocation = vec2(normalizedCoordinates*(canvasSize-1.0));
-    vertexColor = color;
+    //vec2 normalizedCoordinates = (coordinates.xy+1.0)*0.5;
+    //pixelLocation = vec2(normalizedCoordinates*(canvasSize-1.0));
+    pixelLocation = coordinates.xy;
   }
 </script>
 <script id="fragment-shader" type="webgl-shader/fragment">#version 300 es
@@ -30,7 +28,6 @@
   uniform mat4 modelMatrix;
   uniform mat4 viewMatrix;
   uniform mat4 projectionMatrix;
-  in vec3 vertexColor;
   in vec2 pixelLocation;
   out vec4 FragColor;
 
@@ -70,27 +67,35 @@
   }
 
   void main(void) {
-    mat4 mvp = projectionMatrix * modelMatrix * viewMatrix ;
+    mat4 mvp = projectionMatrix * modelMatrix * viewMatrix;
+    mat4 invmvp = inverse(mvp);
     mat4 vm = inverse( modelMatrix * viewMatrix);
     vec3 cameraPos = vec3(vm[3].xyz)/vm[3].w;
 
-    FragColor = vec4(cameraPos, 1.0);
-    return;
+    vec4 screenPosScaled = invmvp * vec4(pixelLocation, 0.0, 0.0);
+    vec3 screenPos = screenPosScaled.xyz/screenPosScaled.w;
+
+    vec3 rayDirection = normalize(screenPos - cameraPos);
 
     int nofSpheres = textureSize(sphereVertexSampler, 0).x;
 
+ //   FragColor = vec4(rayDirection, 1.0);
+   // return;
+
     for(int i=0; i<nofSpheres; ++i)
     {
-      vec4 sphereColor = texelFetch(sphereColorSampler, ivec2(i, 0), 0);
-      vec4 spherePosition = texelFetch(sphereVertexSampler, ivec2(i, 0), 0);
-
-      FragColor = sphereColor;
- //     if( pixelLocation.x < float(i) )
-  //    {
-   //     return;
-     // }
-
+      vec3 location;
+      vec3 normal;
+      if( intersectSphere( i, cameraPos, rayDirection, location, normal ) )
+      {
+        vec4 sphereColor = texelFetch(sphereColorSampler, ivec2(i, 0), 0);
+        FragColor = vec4(sphereColor.rgb, 1.0);
+        //FragColor = vec4(0.0,1.0,0.0, 1.0);
+        return;
+      }
     }
+    //FragColor = vec4(1.0,0.0,0.0,1.0);
+    discard;
   }
 </script>
 <script>
@@ -113,11 +118,11 @@
 
   var viewUp = twgl.v3.create(0, -1, 0);
   var viewRight = twgl.v3.create(1, 0, 0);
-  var distance = -2;
+  var distance = 2;
   var eye = twgl.v3.create(0, 0, distance);
   var center = twgl.v3.create(0, 0, 0);
 
-  var nofSpheres = 1000;
+  var nofSpheres = 10000;
   var nofItems = 2;
   var nofChannels = 4; // 3-for vertex + 3-for color
   var sphereTextureVertexData = new Float32Array(nofSpheres*nofChannels);
