@@ -2,8 +2,15 @@
 <head>
   <link rel="stylesheet" type="text/css" href="../style/main.css">
 </head>
+<script>
+    function goBack() {
+      window.history.back();
+    }
+</script>
 <body>
-  <h1>04-WebGL Quad Color</h1>
+  <button class="backButton" onclick="goBack()">Go Back</button>
+  <div class="content">
+  <h1>04: WebGL Quad Color</h1>
   <canvas id="webglCanvas" width="640" height="480"></canvas>
   </div>
 </body>

@@ -2,8 +2,15 @@
 <head>
   <link rel="stylesheet" type="text/css" href="../style/main.css">
 </head>
+<script>
+    function goBack() {
+      window.history.back();
+    }
+</script>
 <body>
-  <h1>01 WebGL Introduction</h1>
+  <button class="backButton" onclick="goBack()">Go Back</button>
+  <div class=content>
+  <h1>01: WebGL Introduction</h1>
   <canvas id="webglCanvas" width="640" height="480"></canvas>
   </div>
 </body>
@@ -20,7 +27,7 @@
       return
     }
 
-    gl.clearColor(1.0, 0.0, 0.0, 1.0);
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
   }
 

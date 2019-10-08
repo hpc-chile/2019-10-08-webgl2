@@ -1,35 +1,56 @@
 body
-    {
-      font-family: sans-serif;
-      background: linear-gradient(gray, white) no-repeat;
-    }
+{
+    align-content: center;
+    align-items: center;
 
-    h1
-    {
-      text-shadow: 2px 2px gray;
-    }
+    font-family: sans-serif;
+    background: linear-gradient(rgb(110, 182, 101), white) no-repeat;
+}
 
-    ul
-    {
-      
-      padding: 20px;
-      list-style-type: none;
-    }
+h1
+{
+    text-align: center;
+}
 
-    li
-    {
-      margin: 0.5rem;
+ul
+{
     
-    }
+    padding: 20px;
+    list-style-type: none;
+}
 
-    a, a:active, a:link, a:hover
-    {
-      font-weight:bold;
-      text-decoration: none;
-      color:rgb(0, 75, 75);
-    }
-    
-    a:hover
-    {
-      color:black;
-    }
+li
+{
+    margin: 0.5rem;
+
+}
+
+a, a:active, a:link, a:hover
+{
+    font-weight:bold;
+    text-decoration: none;
+    color:rgb(0, 75, 75);
+}
+
+a:hover
+{
+    color:black;
+}
+
+.backButton
+{
+    background-color: #4CAF50; /* Green */
+    border: none;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+}
+
+.content
+{
+    align-content: center;
+    text-align: center;
+}
