@@ -5,24 +5,31 @@
   <canvas id="webglCanvas" width="640" height="480"></canvas>
   </div>
 </body>
+<script src="twgl-full.js"></script>
 <script id="vertex-shader" type="webgl-shader/vertex">#version 300 es
   in vec3 coordinates;
   in vec3 color;
   out vec3 vertexColor;
   uniform vec2 canvasSize;
+  uniform mat4 modelMatrix;
+  uniform mat4 viewMatrix;
+  uniform mat4 projectionMatrix;
   out vec2 pixelLocation;
 
   void main(void) {
-   gl_Position = vec4(coordinates, 1.0);
-   vec2 normalizedCoordinates = (coordinates.xy+1.0)*0.5;
-   pixelLocation = vec2(normalizedCoordinates*(canvasSize-1.0));
-   vertexColor = color;
+    gl_Position = vec4(coordinates, 1.0);
+    vec2 normalizedCoordinates = (coordinates.xy+1.0)*0.5;
+    pixelLocation = vec2(normalizedCoordinates*(canvasSize-1.0));
+    vertexColor = color;
   }
 </script>
 <script id="fragment-shader" type="webgl-shader/fragment">#version 300 es
   precision highp float;
   uniform sampler2D sphereVertexSampler;
   uniform sampler2D sphereColorSampler;
+  uniform mat4 modelMatrix;
+  uniform mat4 viewMatrix;
+  uniform mat4 projectionMatrix;
   in vec3 vertexColor;
   in vec2 pixelLocation;
   out vec4 FragColor;
@@ -35,15 +42,15 @@
     vec3 l = spherePosition - rayOrigin;
     float d = dot(l, rayDirection);
     float d2 = d*d;
-    double l2 = dot(l, l);
-    double r2 = sphereRadius * sphereRadius;
+    float l2 = dot(l, l);
+    float r2 = sphereRadius * sphereRadius;
 
-    if( d < 0 && l2 > r2 )
+    if( d < 0.0 && l2 > r2 )
     {
       return false;
     }
 
-    float m2 = l2 = d2;
+    float m2 = l2 - d2;
 
     if( m2 > r2 )
     {
@@ -53,7 +60,8 @@
     float q = sqrt( r2 - m2 );
 
     float t = d;
-    t += ( l2 > r2 )? -q + q;
+    float sq = 
+    t = t + (( l2 > r2 )? -q : + q);
 
     location = rayOrigin + t * rayDirection;
     normal = normalize(location - spherePosition);
@@ -62,6 +70,13 @@
   }
 
   void main(void) {
+    mat4 mvp = projectionMatrix * modelMatrix * viewMatrix ;
+    mat4 vm = inverse( modelMatrix * viewMatrix);
+    vec3 cameraPos = vec3(vm[3].xyz)/vm[3].w;
+
+    FragColor = vec4(cameraPos, 1.0);
+    return;
+
     int nofSpheres = textureSize(sphereVertexSampler, 0).x;
 
     for(int i=0; i<nofSpheres; ++i)
@@ -88,12 +103,19 @@
 
   var indices = [0, 1, 2, 1, 2, 3];
 
-  var colors = [ //
-    0.0, 0.0, 1.0, //
-    0.0, 1.0, 0.0, //
-    1.0, 0.0, 0.0, //
-    1.0, 1.0, 1.0, //
-  ];
+  var modelMatrixUniform;
+  var viewMatrixUniform;
+  var projectionMatrixUniform;
+
+  var modelMatrix = twgl.m4.identity();
+  var viewMatrix = twgl.m4.identity();
+  var perspectiveMatrix = twgl.m4.identity();
+
+  var viewUp = twgl.v3.create(0, -1, 0);
+  var viewRight = twgl.v3.create(1, 0, 0);
+  var distance = -2;
+  var eye = twgl.v3.create(0, 0, distance);
+  var center = twgl.v3.create(0, 0, 0);
 
   var nofSpheres = 1000;
   var nofItems = 2;
@@ -112,10 +134,11 @@
     sphereTextureColorData[s*nofChannels+nofChannels-1] = 1.0;
   }
 
-  // console.log(sphereTextureData);
-
   var sphereVertexTexture;
   var sphereColorTexture;
+  var sphereVertexSamplerUniform;
+  var sphereColorSamplerUniform;
+  var canvasSizeUniform;
 
   function checkShaderCompilation(gl, shader) {
     var compiled = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
@@ -124,12 +147,12 @@
     console.log('Shader compiler log: ' + compilationLog);
   };
 
-  function loadWebGLScene() {
-    // Get the canvas where we will work
-    const canvas = document.querySelector("#webglCanvas");
-    // Initialize WebGL context
-    const gl = canvas.getContext("webgl2");
+  // Get the canvas where we will work
+  const canvas = document.querySelector("#webglCanvas");
+  // Initialize WebGL context
+  const gl = canvas.getContext("webgl2");
 
+  function loadWebGLScene() {
     // Check if WebGL is availaible
     if (gl === null) {
       alert("No WebGL context available. Try another browser or refresh the wepage.");
@@ -159,18 +182,6 @@
 
     // Unbind the buffer
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
-
-    // Create an empty buffer object to store Colors buffer
-    var Colors_Buffer = gl.createBuffer();
-
-    // Bind appropiate buffer to it
-    gl.bindBuffer(gl.ARRAY_BUFFER, Colors_Buffer);
-
-    // Pass the color data to the buffer
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
-
-    // Unbind the buffer
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
     /*================ Textures ====================*/
 
@@ -273,37 +284,55 @@
     // Enable the attribute
     gl.enableVertexAttribArray(coord);
 
-    // Bind colors buffer object
-    gl.bindBuffer(gl.ARRAY_BUFFER, Colors_Buffer);
+      /*==============Matrices================*/
 
-    // Get the attribute location
-    var color = gl.getAttribLocation(shaderProgram, "color");
+    modelMatrixUniform = gl.getUniformLocation(shaderProgram, "modelMatrix");
 
-    // Point attribute to the Colors Buffer Object
-    gl.vertexAttribPointer(color, 3, gl.FLOAT, false, 0, 0);
+    modelMatrix = twgl.m4.identity();
 
-    // Enable the attribute
-    gl.enableVertexAttribArray(color);
+    viewMatrixUniform = gl.getUniformLocation(shaderProgram, "viewMatrix");
+
+    viewMatrix = twgl.m4.lookAt(eye, center, viewUp);
+
+    projectionMatrixUniform = gl.getUniformLocation(shaderProgram, "projectionMatrix");
+
+    perspectiveMatrix = twgl.m4.frustum(-1, 1, -1, 1, 1, 1000);
 
     /*===========Textures======================*/
 
-    var sphereVertexSamplerUniform = gl.getUniformLocation(shaderProgram, 'sphereVertexSampler')
-    
+    sphereVertexSamplerUniform = gl.getUniformLocation(shaderProgram, 'sphereVertexSampler')
+   
+    sphereColorSamplerUniform = gl.getUniformLocation(shaderProgram, 'sphereColorSampler')
+   
+    canvasSizeUniform = gl.getUniformLocation(shaderProgram, 'canvasSize');
+
+    requestAnimationFrame(renderLoop);
+  }
+
+  function renderLoop() {
+    /*=============Matrices Values================*/
+
+    gl.uniformMatrix4fv(modelMatrixUniform, false, modelMatrix);
+
+    // viewMatrix = twgl.m4.lookAt(eye, center, viewUp);
+
+    gl.uniformMatrix4fv(viewMatrixUniform, false, viewMatrix);
+
+    gl.uniformMatrix4fv(projectionMatrixUniform, false, perspectiveMatrix);
+
+    /*===========Textures======================*/
+
     gl.activeTexture(gl.TEXTURE0);
 
     gl.bindTexture(gl.TEXTURE_2D, sphereVertexTexture);
     
     gl.uniform1i(sphereVertexSamplerUniform, 0);
 
-    var sphereColorSamplerUniform = gl.getUniformLocation(shaderProgram, 'sphereColorSampler')
-    
     gl.activeTexture(gl.TEXTURE1);
 
     gl.bindTexture(gl.TEXTURE_2D, sphereColorTexture);
     
     gl.uniform1i(sphereColorSamplerUniform, 1);
-
-    var canvasSizeUniform = gl.getUniformLocation(shaderProgram, 'canvasSize');
 
     gl.uniform2f(canvasSizeUniform, canvas.width, canvas.height);
 
@@ -324,7 +353,37 @@
     // Draw the triangle
     gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
 
+    requestAnimationFrame(renderLoop);
   }
+
+  var moving = false;
+
+  function onMouseDown(e) {
+    moving = true;
+  }
+
+  function onMouseUp(e) {
+    moving = false;
+  }
+
+  function onMouseMove(e) {
+    if (!moving) {
+      return;
+    }
+
+    twgl.m4.axisRotate(viewMatrix, viewUp, -distance * e.movementX / canvas.width, viewMatrix);
+    twgl.m4.axisRotate(viewMatrix, viewRight, distance * e.movementY / canvas.height, viewMatrix);
+  }
+
+  function onWheel(e) {
+    var delta = 1.0 + e.deltaY / 10;
+    twgl.m4.scale(viewMatrix, twgl.v3.create(delta, delta, delta), viewMatrix);
+  }
+
+  canvas.addEventListener("mousedown", onMouseDown);
+  canvas.addEventListener("mouseup", onMouseUp);
+  canvas.addEventListener("mousemove", onMouseMove);
+  canvas.addEventListener("wheel", onWheel);
 
   window.onload = loadWebGLScene;
 </script>
