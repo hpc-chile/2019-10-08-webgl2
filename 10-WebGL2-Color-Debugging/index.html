@@ -1,0 +1,410 @@
+<html>
+
+<body>
+  <h1>10-WebGL2 Color Debugging</h1>
+  <canvas id="webglCanvas" width="1280" height="720"></canvas>
+  </div>
+</body>
+<script src="twgl-full.js"></script>
+<script id="vertex-shader" type="webgl-shader/vertex">#version 300 es
+  in vec3 coordinates;
+  uniform vec2 canvasSize;
+  uniform mat4 modelMatrix;
+  uniform mat4 viewMatrix;
+  uniform mat4 projectionMatrix;
+  out vec2 pixelLocation;
+
+  void main(void) {
+    gl_Position = vec4(coordinates, 1.0);
+    //vec2 normalizedCoordinates = (coordinates.xy+1.0)*0.5;
+    //pixelLocation = vec2(normalizedCoordinates*(canvasSize-1.0));
+    pixelLocation = coordinates.xy;
+  }
+</script>
+<script id="fragment-shader" type="webgl-shader/fragment">#version 300 es
+  precision highp float;
+  uniform sampler2D sphereVertexSampler;
+  uniform sampler2D sphereColorSampler;
+  uniform mat4 modelMatrix;
+  uniform mat4 viewMatrix;
+  uniform mat4 projectionMatrix;
+  in vec2 pixelLocation;
+  out vec4 FragColor;
+
+  float sphereRadius = 0.1;
+
+  bool intersectSphere(int index, vec3 rayOrigin, vec3 rayDirection, out vec3 location, out vec3 normal)
+  {
+    vec3 spherePosition = texelFetch(sphereVertexSampler, ivec2(index, 0), 0).xyz;
+    vec3 l = spherePosition - rayOrigin;
+    float d = dot(l, rayDirection);
+    float d2 = d*d;
+    float l2 = dot(l, l);
+    float r2 = sphereRadius * sphereRadius;
+
+    if( d < 0.0 && l2 > r2 )
+    {
+      location = vec3(1.0,0.0,0.0);
+      return false;
+    }
+
+    float m2 = l2 - d2;
+
+    if( m2 > r2 )
+    {
+      location = vec3(0.0,1.0,0.0);
+      return false;
+    }
+
+    float q = sqrt( r2 - m2 );
+
+    float t = d;
+    t = t + (( l2 > r2 )? -q : + q);
+
+    location = rayOrigin + t * rayDirection;
+    normal = normalize(location - spherePosition);
+
+    return true;
+  }
+
+  vec3 simpleLighting(in vec4 color, in vec3 normal )
+  {
+    vec3 lightDir = normalize(vec3(-1,-1,-1));
+    vec3 ambient = color.rgb*0.2;
+    vec3 diffuse = max(dot(normal,lightDir),0.0) * color.rgb;
+    
+    return ambient + diffuse;
+  }
+
+  void main(void) {
+    mat4 mvp = projectionMatrix * modelMatrix * viewMatrix;
+    mat4 invmvp = inverse(mvp);
+    mat4 vm = inverse( modelMatrix * viewMatrix);
+    vec3 cameraPos = vec3(vm[3].xyz)/vm[3].w;
+
+    vec4 screenPosScaled = invmvp * vec4(pixelLocation, -1.0, 0.0);
+    vec3 screenPos = screenPosScaled.xyz/screenPosScaled.w;
+
+    vec3 rayDirection = normalize(screenPos - cameraPos);
+
+    int nofSpheres = textureSize(sphereVertexSampler, 0).x;
+
+    float farDistance = 1e10;
+
+    for(int i=0; i<nofSpheres; ++i)
+    {
+      vec3 location;
+      vec3 normal;
+      if( intersectSphere( i, cameraPos, rayDirection, location, normal ) )
+      {
+        if( abs(distance(cameraPos, location)) < farDistance )
+        {
+          vec4 color = texelFetch(sphereColorSampler, ivec2(i, 0), 0);
+          
+          FragColor = vec4(simpleLighting( color, normal ), color.a);
+          farDistance = distance( cameraPos, location );
+        }
+      }
+    }
+    if( farDistance >= 1e10 )
+    {
+      discard;
+    }
+  }
+</script>
+<script>
+  var vertices = [ //
+    -1.0, -1.0, -1.0, //
+    -1.0, 1.0, -1.0, //
+    1.0, -1.0, -1.0, //
+    1.0, 1.0, -1.0,
+  ];
+
+  var indices = [0, 1, 2, 1, 2, 3];
+
+  var modelMatrixUniform;
+  var viewMatrixUniform;
+  var projectionMatrixUniform;
+
+  var modelMatrix = twgl.m4.identity();
+  var viewMatrix = twgl.m4.identity();
+  var perspectiveMatrix = twgl.m4.identity();
+
+  var viewUp = twgl.v3.create(0, 1, 0);
+  var viewRight = twgl.v3.create(1, 0, 0);
+  var distance = -2;
+  var eye = twgl.v3.create(0, 0, distance);
+  var center = twgl.v3.create(0, 0, 0);
+
+  var nofSpheres = 1000;
+  var nofItems = 2;
+  var nofChannels = 4; // 3-for vertex + 3-for color
+  var sphereTextureVertexData = new Float32Array(nofSpheres*nofChannels);
+  var sphereTextureColorData = new Float32Array(nofSpheres*nofChannels);
+
+  for(var s=0; s<nofSpheres; ++s)
+  {
+    for(var index=0; index<(nofChannels); ++index)
+    {
+      sphereTextureVertexData[s*nofChannels+index] = -1.0 + 2 * Math.random();
+      sphereTextureColorData[s*nofChannels+index] = Math.random();
+    }
+    sphereTextureVertexData[s*nofChannels+nofChannels-1] = 0.0;
+    sphereTextureColorData[s*nofChannels+nofChannels-1] = 1.0;
+  }
+
+  var sphereVertexTexture;
+  var sphereColorTexture;
+  var sphereVertexSamplerUniform;
+  var sphereColorSamplerUniform;
+  var canvasSizeUniform;
+
+  function checkShaderCompilation(gl, shader) {
+    var compiled = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
+    console.log('Shader compiled successfully: ' + compiled);
+    var compilationLog = gl.getShaderInfoLog(shader);
+    console.log('Shader compiler log: ' + compilationLog);
+  };
+
+  // Get the canvas where we will work
+  const canvas = document.querySelector("#webglCanvas");
+  // Initialize WebGL context
+  const gl = canvas.getContext("webgl2");
+
+  function loadWebGLScene() {
+    // Check if WebGL is availaible
+    if (gl === null) {
+      alert("No WebGL context available. Try another browser or refresh the wepage.");
+      return
+    }
+
+    // Create an empty buffer object to store vertex buffer
+    var Vertex_Buffer = gl.createBuffer();
+
+    // Bind appropiate array buffer to it
+    gl.bindBuffer(gl.ARRAY_BUFFER, Vertex_Buffer);
+
+    // Pass the vertex data to the buffer
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+
+    // Unbind the buffer
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+    // Create an empty buffer object to store Index buffer
+    var Index_Buffer = gl.createBuffer();
+
+    // Bind appropiate array buffer to it
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, Index_Buffer);
+
+    // Pass the vertex data to the buffer
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+
+    // Unbind the buffer
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+
+    /*================ Textures ====================*/
+
+    sphereVertexTexture = gl.createTexture();
+
+    gl.activeTexture(gl.TEXTURE0);
+
+    gl.bindTexture(gl.TEXTURE_2D, sphereVertexTexture);
+
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, nofSpheres, 1, 0, gl.RGBA, gl.FLOAT, sphereTextureVertexData);
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); 
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); 
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
+
+    sphereColorTexture = gl.createTexture();
+
+    gl.activeTexture(gl.TEXTURE1);
+
+    gl.bindTexture(gl.TEXTURE_2D, sphereColorTexture);
+
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, nofSpheres, 1, 0, gl.RGBA, gl.FLOAT, sphereTextureColorData);
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); 
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); 
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
+
+    /*================ Shaders ====================*/
+
+    // Vertex shader source code
+    var vertCode = document.getElementById("vertex-shader").text;
+
+    // Create a vertex shader object
+    var vertShader = gl.createShader(gl.VERTEX_SHADER);
+
+    // Attach vertex shader source code
+    gl.shaderSource(vertShader, vertCode);
+
+    // Compile the vertex shader
+    gl.compileShader(vertShader);
+
+    checkShaderCompilation(gl, vertShader);
+
+    //fragment shader source code
+    var fragCode = document.getElementById("fragment-shader").text;
+
+    // Create fragment shader object
+    var fragShader = gl.createShader(gl.FRAGMENT_SHADER);
+
+    // Attach fragment shader source code
+    gl.shaderSource(fragShader, fragCode);
+
+    // Compile the fragment shader
+    gl.compileShader(fragShader);
+
+    checkShaderCompilation(gl, fragShader);
+
+    // Create a shader program object to store
+    // the combined shader program
+    var shaderProgram = gl.createProgram();
+
+    // Attach a vertex shader
+    gl.attachShader(shaderProgram, vertShader);
+
+    // Attach a fragment shader
+    gl.attachShader(shaderProgram, fragShader);
+
+    // Link both the programs
+    gl.linkProgram(shaderProgram);
+
+    // Use the combined shader program object
+    gl.useProgram(shaderProgram);
+
+    /*======= Associating shaders to buffer objects =======*/
+
+    // Bind vertex buffer object
+    gl.bindBuffer(gl.ARRAY_BUFFER, Vertex_Buffer);
+
+    // Bind index buffer object
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, Index_Buffer);
+
+    // Get the attribute location
+    var coord = gl.getAttribLocation(shaderProgram, "coordinates");
+
+    // Point an attribute to the currently bound VBO
+    gl.vertexAttribPointer(coord, 3, gl.FLOAT, false, 0, 0);
+
+    // Enable the attribute
+    gl.enableVertexAttribArray(coord);
+
+      /*==============Matrices================*/
+
+    modelMatrixUniform = gl.getUniformLocation(shaderProgram, "modelMatrix");
+
+    modelMatrix = twgl.m4.identity();
+
+    viewMatrixUniform = gl.getUniformLocation(shaderProgram, "viewMatrix");
+
+    viewMatrix = twgl.m4.lookAt(eye, center, viewUp);
+
+    projectionMatrixUniform = gl.getUniformLocation(shaderProgram, "projectionMatrix");
+
+    perspectiveMatrix = twgl.m4.frustum(-1, 1, -1, 1, 1, 1000);
+
+    /*===========Textures======================*/
+
+    sphereVertexSamplerUniform = gl.getUniformLocation(shaderProgram, 'sphereVertexSampler')
+   
+    sphereColorSamplerUniform = gl.getUniformLocation(shaderProgram, 'sphereColorSampler')
+   
+    canvasSizeUniform = gl.getUniformLocation(shaderProgram, 'canvasSize');
+
+    requestAnimationFrame(renderLoop);
+  }
+
+  function renderLoop() {
+    /*=============Matrices Values================*/
+
+    gl.uniformMatrix4fv(modelMatrixUniform, false, modelMatrix);
+
+    // viewMatrix = twgl.m4.lookAt(eye, center, viewUp);
+
+    gl.uniformMatrix4fv(viewMatrixUniform, false, viewMatrix);
+
+    gl.uniformMatrix4fv(projectionMatrixUniform, false, perspectiveMatrix);
+
+    /*===========Textures======================*/
+
+    gl.activeTexture(gl.TEXTURE0);
+
+    gl.bindTexture(gl.TEXTURE_2D, sphereVertexTexture);
+    
+    gl.uniform1i(sphereVertexSamplerUniform, 0);
+
+    gl.activeTexture(gl.TEXTURE1);
+
+    gl.bindTexture(gl.TEXTURE_2D, sphereColorTexture);
+    
+    gl.uniform1i(sphereColorSamplerUniform, 1);
+
+    gl.uniform2f(canvasSizeUniform, canvas.width, canvas.height);
+
+    /*=========Drawing the triangle===========*/
+
+    // Clear the canvas
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+    // Enable the depth test
+    gl.enable(gl.DEPTH_TEST);
+
+    // Clear the color buffer bit
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    // Set the view port
+    gl.viewport(0, 0, canvas.width, canvas.height);
+
+    // Draw the triangle
+    gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+
+    requestAnimationFrame(renderLoop);
+  }
+
+  var moving = false;
+
+  function onMouseDown(e) {
+    moving = true;
+  }
+
+  function onMouseUp(e) {
+    moving = false;
+  }
+
+  function onMouseMove(e) {
+    if (!moving) {
+      return;
+    }
+
+    twgl.m4.axisRotate(viewMatrix, viewUp, -distance * e.movementX / canvas.width, viewMatrix);
+    twgl.m4.axisRotate(viewMatrix, viewRight, distance * e.movementY / canvas.height, viewMatrix);
+  }
+
+  function onWheel(e) {
+    var delta = 1.0 + e.deltaY / 10;
+    twgl.m4.scale(viewMatrix, twgl.v3.create(delta, delta, delta), viewMatrix);
+  }
+
+  canvas.addEventListener("mousedown", onMouseDown);
+  canvas.addEventListener("mouseup", onMouseUp);
+  canvas.addEventListener("mousemove", onMouseMove);
+  canvas.addEventListener("wheel", onWheel);
+
+  window.onload = loadWebGLScene;
+</script>
+
+</html>
