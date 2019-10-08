@@ -36,9 +36,6 @@
   bool intersectSphere(int index, vec3 rayOrigin, vec3 rayDirection, out vec3 location, out vec3 normal)
   {
     vec3 spherePosition = texelFetch(sphereVertexSampler, ivec2(index, 0), 0).xyz;
-    //rayOrigin = vec3(0.0,0.0,-2.0);
-    //rayDirection = vec3(0.0,0.0,1.0);
-    //vec3 spherePosition = vec3(0.0);
     vec3 l = spherePosition - rayOrigin;
     float d = dot(l, rayDirection);
     float d2 = d*d;
@@ -70,22 +67,29 @@
     return true;
   }
 
+  vec3 simpleLighting(in vec4 color, in vec3 normal )
+  {
+    vec3 lightDir = normalize(vec3(-1,-1,-1));
+    vec3 ambient = color.rgb*0.2;
+    vec3 diffuse = max(dot(normal,lightDir),0.0) * color.rgb;
+    
+    return ambient + diffuse;
+  }
+
   void main(void) {
     mat4 mvp = projectionMatrix * modelMatrix * viewMatrix;
     mat4 invmvp = inverse(mvp);
     mat4 vm = inverse( modelMatrix * viewMatrix);
     vec3 cameraPos = vec3(vm[3].xyz)/vm[3].w;
-    //vec3 cameraPos = vec3(0.0,0.0,-2.0);
 
     vec4 screenPosScaled = invmvp * vec4(pixelLocation, -1.0, 1.0);
     vec3 screenPos = screenPosScaled.xyz/screenPosScaled.w;
 
-  //  FragColor = vec4(screenPos, 1.0);
-   // return;
-
     vec3 rayDirection = normalize(screenPos - cameraPos);
 
     int nofSpheres = textureSize(sphereVertexSampler, 0).x;
+
+    float farDistance = 1e10;
 
     for(int i=0; i<nofSpheres; ++i)
     {
@@ -93,17 +97,19 @@
       vec3 normal;
       if( intersectSphere( i, cameraPos, rayDirection, location, normal ) )
       {
-        //vec4 sphereColor = texelFetch(sphereColorSampler, ivec2(i, 0), 0);
-        //FragColor = vec4(sphereColor.rgb, 1.0);
-        //FragColor = vec4(location, 1.0);
-        FragColor = vec4(0.0,1.0,0.0, 1.0);
-        return;
+        if( abs(distance(cameraPos, location)) < farDistance )
+        {
+          vec4 color = texelFetch(sphereColorSampler, ivec2(i, 0), 0);
+          
+          FragColor = vec4(simpleLighting( color, normal ), color.a);
+          farDistance = distance( cameraPos, location );
+        }
       }
-      //FragColor = vec4(location, 1.0);
-      //return;
     }
-    FragColor = vec4(1.0,0.0,0.0,1.0);
-    //discard;
+    if( farDistance >= 1e10 )
+    {
+      discard;
+    }
   }
 </script>
 <script>
