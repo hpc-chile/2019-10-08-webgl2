@@ -27,6 +27,40 @@
   in vec2 pixelLocation;
   out vec4 FragColor;
 
+  float sphereRadius = 0.1;
+
+  bool intersectSphere(int index, vec3 rayOrigin, vec3 rayDirection, out vec3 location, out vec3 normal)
+  {
+    vec3 spherePosition = texelFetch(sphereVertexSampler, ivec2(index, 0), 0).xyz;
+    vec3 l = spherePosition - rayOrigin;
+    float d = dot(l, rayDirection);
+    float d2 = d*d;
+    double l2 = dot(l, l);
+    double r2 = sphereRadius * sphereRadius;
+
+    if( d < 0 && l2 > r2 )
+    {
+      return false;
+    }
+
+    float m2 = l2 = d2;
+
+    if( m2 > r2 )
+    {
+      return false;
+    }
+
+    float q = sqrt( r2 - m2 );
+
+    float t = d;
+    t += ( l2 > r2 )? -q + q;
+
+    location = rayOrigin + t * rayDirection;
+    normal = normalize(location - spherePosition);
+
+    return true;
+  }
+
   void main(void) {
     int nofSpheres = textureSize(sphereVertexSampler, 0).x;
 
@@ -36,10 +70,10 @@
       vec4 spherePosition = texelFetch(sphereVertexSampler, ivec2(i, 0), 0);
 
       FragColor = sphereColor;
-      if( pixelLocation.x < float(i) )
-      {
-        return;
-      }
+ //     if( pixelLocation.x < float(i) )
+  //    {
+   //     return;
+     // }
 
     }
   }
@@ -82,7 +116,6 @@
 
   var sphereVertexTexture;
   var sphereColorTexture;
-  var sphereRadius = 0.1;
 
   function checkShaderCompilation(gl, shader) {
     var compiled = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
