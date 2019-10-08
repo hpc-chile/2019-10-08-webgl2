@@ -9,19 +9,39 @@
   in vec3 coordinates;
   in vec3 color;
   out vec3 vertexColor;
+  uniform vec2 canvasSize;
+  out vec2 pixelLocation;
 
   void main(void) {
    gl_Position = vec4(coordinates, 1.0);
+   vec2 normalizedCoordinates = (coordinates.xy+1.0)*0.5;
+   pixelLocation = vec2(normalizedCoordinates*(canvasSize-1.0));
    vertexColor = color;
   }
 </script>
 <script id="fragment-shader" type="webgl-shader/fragment">#version 300 es
-  precision mediump float;
+  precision highp float;
+  uniform sampler2D sphereVertexSampler;
+  uniform sampler2D sphereColorSampler;
   in vec3 vertexColor;
+  in vec2 pixelLocation;
   out vec4 FragColor;
 
   void main(void) {
-    FragColor = vec4(vertexColor, 1.0);
+    int nofSpheres = textureSize(sphereVertexSampler, 0).x;
+
+    for(int i=0; i<nofSpheres; ++i)
+    {
+      vec4 sphereColor = texelFetch(sphereColorSampler, ivec2(i, 0), 0);
+      vec4 spherePosition = texelFetch(sphereVertexSampler, ivec2(i, 0), 0);
+
+      FragColor = sphereColor;
+      if( pixelLocation.x < float(i) )
+      {
+        return;
+      }
+
+    }
   }
 </script>
 <script>
@@ -40,6 +60,29 @@
     1.0, 0.0, 0.0, //
     1.0, 1.0, 1.0, //
   ];
+
+  var nofSpheres = 1000;
+  var nofItems = 2;
+  var nofChannels = 4; // 3-for vertex + 3-for color
+  var sphereTextureVertexData = new Float32Array(nofSpheres*nofChannels);
+  var sphereTextureColorData = new Float32Array(nofSpheres*nofChannels);
+
+  for(var s=0; s<nofSpheres; ++s)
+  {
+    for(var index=0; index<(nofChannels-1); ++index)
+    {
+      sphereTextureVertexData[s*nofChannels+index] = Math.random();
+      sphereTextureColorData[s*nofChannels+index] = Math.random();
+    }
+    sphereTextureVertexData[s*nofChannels+nofChannels-1] = 0.0;
+    sphereTextureColorData[s*nofChannels+nofChannels-1] = 1.0;
+  }
+
+  // console.log(sphereTextureData);
+
+  var sphereVertexTexture;
+  var sphereColorTexture;
+  var sphereRadius = 0.1;
 
   function checkShaderCompilation(gl, shader) {
     var compiled = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
@@ -95,6 +138,44 @@
 
     // Unbind the buffer
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+    /*================ Textures ====================*/
+
+    sphereVertexTexture = gl.createTexture();
+
+    gl.activeTexture(gl.TEXTURE0);
+
+    gl.bindTexture(gl.TEXTURE_2D, sphereVertexTexture);
+
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, nofSpheres, 1, 0, gl.RGBA, gl.FLOAT, sphereTextureVertexData);
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); 
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); 
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
+
+    sphereColorTexture = gl.createTexture();
+
+    gl.activeTexture(gl.TEXTURE1);
+
+    gl.bindTexture(gl.TEXTURE_2D, sphereColorTexture);
+
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, nofSpheres, 1, 0, gl.RGBA, gl.FLOAT, sphereTextureColorData);
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); 
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); 
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
 
     /*================ Shaders ====================*/
 
@@ -170,6 +251,28 @@
 
     // Enable the attribute
     gl.enableVertexAttribArray(color);
+
+    /*===========Textures======================*/
+
+    var sphereVertexSamplerUniform = gl.getUniformLocation(shaderProgram, 'sphereVertexSampler')
+    
+    gl.activeTexture(gl.TEXTURE0);
+
+    gl.bindTexture(gl.TEXTURE_2D, sphereVertexTexture);
+    
+    gl.uniform1i(sphereVertexSamplerUniform, 0);
+
+    var sphereColorSamplerUniform = gl.getUniformLocation(shaderProgram, 'sphereColorSampler')
+    
+    gl.activeTexture(gl.TEXTURE1);
+
+    gl.bindTexture(gl.TEXTURE_2D, sphereColorTexture);
+    
+    gl.uniform1i(sphereColorSamplerUniform, 1);
+
+    var canvasSizeUniform = gl.getUniformLocation(shaderProgram, 'canvasSize');
+
+    gl.uniform2f(canvasSizeUniform, canvas.width, canvas.height);
 
     /*=========Drawing the triangle===========*/
 
