@@ -2,7 +2,7 @@
 
 <body>
   <h1>09-WebGL2 Raytracing</h1>
-  <canvas id="webglCanvas" width="640" height="480"></canvas>
+  <canvas id="webglCanvas" width="1280" height="720"></canvas>
   </div>
 </body>
 <script src="twgl-full.js"></script>
@@ -136,7 +136,7 @@
   var eye = twgl.v3.create(0, 0, distance);
   var center = twgl.v3.create(0, 0, 0);
 
-  var nofSpheres = 10000;
+  var nofSpheres = 100;
   var nofItems = 2;
   var nofChannels = 4; // 3-for vertex + 3-for color
   var sphereTextureVertexData = new Float32Array(nofSpheres*nofChannels);
@@ -146,7 +146,7 @@
   {
     for(var index=0; index<(nofChannels); ++index)
     {
-      sphereTextureVertexData[s*nofChannels+index] = Math.random();
+      sphereTextureVertexData[s*nofChannels+index] = -1.0 + 2 * Math.random();
       sphereTextureColorData[s*nofChannels+index] = Math.random();
     }
     sphereTextureVertexData[s*nofChannels+nofChannels-1] = 0.0;
